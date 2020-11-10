@@ -1,0 +1,59 @@
+drop table if exists thrutalk.results;
+create table thrutalk.results as (
+with results_import as (
+select
+  voter_id, 
+  voter_id_type,
+  voter_first_name,
+  voter_last_name,
+  voter_phone,
+  date_called,
+  time_called_est,
+  caller_login,
+  result,
+  aws_file_key
+from thrutalk.results_import
+group by 1,2,3,4,5,6,7,8,9,10  
+)
+
+select distinct r.voter_id as vanid,  
+	case when r.aws_file_key ilike '%arizona%' then 'AZ'
+ 		when r.aws_file_key ilike '%florida%' then 'FL'
+ 		when r.aws_file_key ilike '%iowa%' then 'IA'
+    	when r.aws_file_key ilike '%maine%' then 'ME'
+    	when r.aws_file_key ilike '%michigan%' then 'MI'
+    	when r.aws_file_key ilike '%north-carolina%' then 'NC'
+ 		when r.aws_file_key ilike '%new-hampshire%' then 'NH'
+ 		when r.aws_file_key ilike '%nevada%' then 'NV'
+ 		when r.aws_file_key ilike '%pennsylvania%' then 'PA'
+ 		when r.aws_file_key ilike '%virginia%' then 'VA'
+ 		when r.aws_file_key ilike '%wisconsin%' then 'WI'
+  	when r.aws_file_key ilike '%distributed%' then 'DI'
+ 		else 'Unknown' end as state,
+    date(cast(r.date_called as date)) as date_canvassed,
+	case when l.name is not null then l.name else null end as canvasser,
+	r.voter_first_name as first,
+	r.voter_last_name as last,
+	r.voter_phone as phone,
+	r.result as result,
+ 	r.aws_file_key,
+  r.voter_id_type,
+	sq.surveyquestionname,
+	sr.surveyresponsename
+from results_import r
+left join thrutalk.callers_import l
+	on r.date_called = l.date and upper(r.caller_login) = upper(l.login)
+left join van.tsm_nextgen_contactssurveyresponses_vf csr
+	on r.voter_id = csr.vanid
+    and date(cast(r.date_called as date)) = date_trunc('d',csr.datecanvassed)
+left join van.tsm_nextgen_surveyquestions sq
+  on csr.surveyquestionid = sq.surveyquestionid
+left join van.tsm_nextgen_surveyresponses sr
+  on csr.surveyresponseid = sr.surveyresponseid
+
+)
+;
+GRANT USAGE ON SCHEMA thrutalk TO periscope_nextgen;
+GRANT SELECT ON thrutalk.results TO periscope_nextgen;
+GRANT USAGE ON SCHEMA thrutalk TO group hq_data;
+GRANT SELECT ON thrutalk.results TO group hq_data;
